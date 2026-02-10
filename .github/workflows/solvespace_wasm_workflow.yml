@@ -1,0 +1,44 @@
+name: Build SolveSpace WASM Library
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive  # Crucial: SolveSpace needs its submodules (mimalloc, eigen, etc.)
+
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: latest
+
+      - name: Configure and Build
+        run: |
+          mkdir build && cd build
+          # -DENABLE_WASM=ON triggers the recent emscripten logic in CMake
+          # -DENABLE_GUI=OFF ensures we don't try to link GTK/OpenGL
+          emcmake cmake .. \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DENABLE_WASM=ON \
+            -DENABLE_GUI=OFF \
+            -DENABLE_CLI=OFF \
+            -DENABLE_TESTS=OFF
+          
+          # We target 'slvs' specifically to get the static library/WASM module
+          emmake make slvs -j$(nproc)
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: solvespace-wasm-lib
+          path: |
+            build/src/exposed/libslvs.a
+            build/bin/libslvs.js
+            build/bin/libslvs.wasm
